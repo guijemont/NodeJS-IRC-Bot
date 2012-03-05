@@ -1,9 +1,9 @@
 /**
  * Fishki plugin: provides translation for fishki links
  *
- * @author		Guillaume Emont
- * @website		http://emont.org/
- * @copyright	Guillaume Emont 2012
+ * @author        Guillaume Emont
+ * @website        http://emont.org/
+ * @copyright    Guillaume Emont 2012
  */
 
 var url = require ('url'),
@@ -18,40 +18,49 @@ Plugin = exports.Plugin = function (irc) {
     this.irc = irc;
 };
 
-var parse_url = function (page_url) {
-    var options = url.parse (page_url);
+var fishkiHandler = function (page_url_) {
+  var page_url = page_url_,
+      that = {};
+
+  var parse_url = function (url_) {
+    var options = url.parse (url_);
     options.path = options.pathname + options.search;
     return options;
-}
+  }
 
-var find_english_url = function () {
+  that.find_english_url = function () {
     var page_data = "",
         options = null,
         en_url_regexp = RegExp('<a href="(http://en.fishki.net/comment.php\\?id=\\d+)"[^>]*>');
-    return function (page_url, callback) {
-        var page_data = "";
 
-        http.get (parse_url (page_url), function (response) {
-            response.on ('data', function (data) {
-                page_data += data;
-            });
-            response.on ('end', function () {
-                var match;
-                //console.log (page_data);
-                console.log ("got %d bytes for", page_data.length);
-                match = en_url_regexp.exec (page_data);
-                if (match === null) {
-                    console.log ("Could not find english url for %s",
-                                 page_url);
-                    callback (null);
-                } else {
-                    callback (match[1]);
-                }
-                page_data = "";
-            });
-        });
+    return function (callback) {
+      var page_data = "";
+
+      http.get (parse_url (page_url), function (response) {
+                response.on ('data', function (data) {
+                             page_data += data;
+                             });
+                response.on ('end', function () {
+                             var match;
+                             //console.log (page_data);
+                             console.log ("got %d bytes for", page_data.length);
+                             match = en_url_regexp.exec (page_data);
+                             if (match === null) {
+                                 console.log ("Could not find english url for %s",
+                                              page_url);
+                                 callback (null);
+                             } else {
+                                 callback (match[1]);
+                             }
+                             page_data = "";
+                             });
+                });
     };
-} ();
+  } ();
+
+  return that;
+}
+
 
 Plugin.prototype.onMessage = function() {
     var url_regex = RegExp ("http://.*fishki.net/comment.php\\?id=\\d+");
@@ -61,12 +70,14 @@ Plugin.prototype.onMessage = function() {
             message = msg.arguments[1],
             regex_result,
             original_url,
-            irc = this.irc;
+            irc = this.irc,
+            fishki;
 
         regex_result = url_regex.exec(message);
         if (regex_result !== null) {
             original_url = regex_result[0];
-            find_english_url (original_url, function (english_url) {
+            fishki = fishkiHandler (original_url);
+            fishki.find_english_url (function (english_url) {
                 if (english_url !== null) {
                     irc.channels[channel].send ("In English: " + english_url);
                 }
@@ -80,7 +91,8 @@ var main = function () {
     var page_url = process.argv[2];
 
     console.log ("Got url:", page_url);
-    find_english_url (page_url, function (en_url) {
+
+    fishkiHandler (page_url).find_english_url (function (en_url) {
         console.log ("English url is:", en_url);
     });
 }
