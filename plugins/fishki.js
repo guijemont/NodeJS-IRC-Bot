@@ -19,7 +19,8 @@ Plugin = exports.Plugin = function (irc) {
 };
 
 var fishkiHandler = function () {
-  var en_url_regexp = RegExp('<a href="(http://en.fishki.net/comment.php\\?id=\\d+)"[^>]*>');
+  var en_url_regexp = RegExp('<a href="(http://en.fishki.net/comment.php\\?id=\\d+)"[^>]*>'),
+      translate_url = "http://translate.google.com/translate";
 
   return function (page_url_) {
     var page_url = page_url_,
@@ -54,8 +55,27 @@ var fishkiHandler = function () {
                 });
     };
 
+    that.translate_url = function (callback) {
+      var parsed_translate_url = url.parse (translate_url);
+
+      parsed_translate_url.query = { tl: "en", u: page_url };
+
+      callback(url.format(parsed_translate_url));
+    };
+
+    that.get_any_readable_url = function (callback) {
+      that.english_url (function (english_url) {
+        if (english_url !== null)
+            callback (english_url);
+        else
+            that.translate_url (callback);
+      });
+    };
+
     return that;
   }
+
+
 }();
 
 
@@ -74,7 +94,7 @@ Plugin.prototype.onMessage = function() {
         if (regex_result !== null) {
             original_url = regex_result[0];
             fishki = fishkiHandler (original_url);
-            fishki.english_url (function (english_url) {
+            fishki.get_any_readable_url (function (english_url) {
                 if (english_url !== null) {
                     irc.channels[channel].send ("In English: " + english_url);
                 }
@@ -91,8 +111,8 @@ var main = function () {
     console.log ("Got url:", page_url);
 
     fishki = fishkiHandler (page_url);
-    fishki.english_url (function (en_url) {
-        console.log ("English url is:", en_url);
+    fishki.get_any_readable_url (function (url_) {
+      console.log ("In English: " + url_);
     });
 }
 
